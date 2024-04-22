@@ -43,8 +43,9 @@ protected:
                          DomManager& manager)
     {
         //先做DOM从已知点云的初始化 主要是通过这一步读图片
+        //先把已经有的稀疏点云的信息部署在dom图上
         matchingPtr_->beforeIterateProcess(manager);
-        //判断是否有可用的网格数据
+        //判断是否有可用的DOM网格数据
         if(gridPath.size()>0)
         {
             DomIO ioTool;
@@ -100,11 +101,11 @@ public:
     {
         //读取dom管理器
         DomManager manager;
-        readDomManager(sfmPath,manager);
+        readDomManager(sfmPath,manager);//获得了三维点云信息与相机信息
         //记录空间分辨率
         setConfigInfo(manager,rangeStr,outputPath,pixelLength,imageRootPath);
         //借助网格单元辅助生成DOM
-        initDomWithGrid(gridPath,manager);
+        initDomWithGrid(gridPath,manager);//这一步也很重要
         //给dom添加mask
         maskAdder_->addMask(manager.domInfo_,maskPath);
         //生成dom的核心流程

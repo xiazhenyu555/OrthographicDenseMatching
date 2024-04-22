@@ -706,7 +706,7 @@ public:
     void getPtsInRange(CvPointVector& dstPtList) const
     {
         //根据范围的面积，提前给点的列表开辟空间
-        dstPtList.reserve(rangeArea());
+        dstPtList.reserve(rangeArea());//3*3=9
         //遍历范围内的点
         for(int colCount=left();colCount<right();++colCount)
         {
@@ -4388,8 +4388,10 @@ public:
     //并返回总共的z阶层的个数
     //最后一个参数是用德劳内三角化的z值做辅助判断的时候使用的
     //minZStep是所允许的最小的z值的阶梯，为了保证较高位置优先被重建所设置的参数
-    uint initZSteps(const RangeType& zRange,double stepRate,bool useCenterZ=false,double nccThre=NCC_THRE
-            ,int minZStep=0)
+    //nccThre = 0.75-0.3
+    //minZStep随时间变小
+    uint initZSteps(const RangeType& zRange,double stepRate,bool useCenterZ=false,
+                    double nccThre=NCC_THRE,int minZStep=0)
     {
         //分别记录都有哪个阶层的数据出现过
         //第1个参数表示z的哪个阶层，第2个参数表示这个阶层的代表标号
@@ -4401,7 +4403,7 @@ public:
         {
             //当前的z优化器
             const DomZOptimizer& iter=optiVec_[optCount];
-            //判断是否为优化过的点
+            //判断是否为优化过的点 或者是已有三维点
             if(iter.isPrior_ || *(iter.nccPtr_)>=nccThre)
             {
                 //判断是否还有可用的次数

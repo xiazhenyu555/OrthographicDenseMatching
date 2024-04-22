@@ -51,8 +51,11 @@ protected:
     {
         manager.loadViewImgs();
         //查找关注位置的点云
+        //根据点云数据与设定的gsd 获得DOM图的长和宽
+        //生成初始DOM 用数据domResult_记录 默认为黑色 最后DOM大小根据是否关注某一范围大小确定
           manager.focusCloudPt();
           //判断是否需要删除中间位置
+          //当算法中选择只使用中相机的时候，在这里先把中相机拍摄不到的点去除
   #ifdef USE_ONLY_MID_CAM
           manager.midCameraFilter();
   #endif
@@ -119,7 +122,7 @@ public:
     {
         //读取dom管理器
         DomManager manager;
-        readDomManager(sfmPath,manager);
+        readDomManager(sfmPath,manager);//获得了三维点云信息与相机信息
         //记录空间分辨率
         setConfigInfo(manager,rangeStr,outputPath,pixelLength,imageRootPath);
         //生成dom的核心流程

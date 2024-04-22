@@ -51,7 +51,7 @@ double getDepthFromXyzFile(std::string filePath)
     return atof(buffer);
 }
 
-
+//程序入口
 int main(int argc, char **argv)
 {
   using namespace std;

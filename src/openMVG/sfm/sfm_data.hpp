@@ -280,6 +280,7 @@ public:
             pixelLength_=std::sqrt(pixelArea);
         }
         //计算最后的DOM图片的宽和高
+        //r
         domWidth_=cloudWidth/pixelLength_;
         domHeight_=cloudHeight/pixelLength_;
         //记录点云范围的最左边和最上边
@@ -448,6 +449,7 @@ public:
     }
 
     //获取完全体的像素单元
+    //获取一个三维点云对应的颜色数据与在最终domResult_里面的位置
     bool getUnit(int pixelX,int pixelY,DomUnitAll& dstUnit)
     {
         //如果不在一个合理的范围内就不做处理
@@ -460,7 +462,7 @@ public:
         //在最后的结果里面记录属于父类的部分
         //重要的是这里面记录了一个指针
         dstUnit.copyFrom(tempUnit);
-        //记录点云坐标
+        //记录三维点云坐标 xy坐标
         dstUnit.scenePt_<<pixelX*pixelLength_+cloudRange_[0],
                 pixelY*pixelLength_+cloudRange_[1];
         //获取颜色数据
@@ -510,6 +512,7 @@ public:
         int pixelX=convertConti2Pixel(cloudPt[0]);
         int pixelY=convertConti2Pixel(cloudPt[1],1);
         //获取目标的像素单元
+         //获取一个三维点云对应的颜色数据与在最终domResult_里面的位置
         return getUnit(pixelX,pixelY,dstUnit);
     }
 
@@ -630,22 +633,23 @@ public:
     //利用cv里面的点列表初始化优化器数据
     //当最后一个参数存在的时候，只取边缘点和已经优化过的点
     void makeOptimizerVector(const CvPointVector& srcPtList,
-                             OptimizerVector& dstVector,const ImgRange* rangeRef=nullptr,double nccThre=NCC_THRE)
+                             OptimizerVector& dstVector,const ImgRange* rangeRef=nullptr,
+                             double nccThre=NCC_THRE)
     {
         //根据点的个数，初始化优化器列表的个数
-        dstVector.reserve(srcPtList.size());
+        dstVector.reserve(srcPtList.size());//9
         //遍历点的列表
         for(CvPointVector::const_iterator iter=srcPtList.begin();
             iter!=srcPtList.end();++iter)
         {
-            //根据点坐标获取当前位置的unit
+            //根据点坐标获取当前位置的unit  unitMap_[idxLocal]
             DomUnit& tempUnit=getUnit(iter->x,iter->y);
             //如果是一个无效的单元，就跳过
 #if defined (GLOBAL_HELP) || (!defined (USE_Z_PLANE))//使用z平面的算法的时候不需要考虑外点的问题
             if(tempUnit.isOutRangePt_) continue;
 #endif
             //判断是否需要进一步筛选边缘点
-            if(rangeRef)
+            if(rangeRef) //空
             {
                 //判断是否为优化过的点
                 if(tempUnit.nccScore_<nccThre && (!rangeRef->judgeMidSide(iter->x,iter->y)))
@@ -657,9 +661,9 @@ public:
             //获取刚刚添加的数据
             DomZOptimizer &newPt=dstVector[dstVector.size()-1];
             //记录它是否为先验点
-            newPt.isPrior_=tempUnit.isPriorPoint_;
+            newPt.isPrior_=tempUnit.isPriorPoint_;//如果来自稀疏点云则是先验点
             //记录该点的ncc分数
-            newPt.nccPtr_=&tempUnit.nccScore_;
+            newPt.nccPtr_=&tempUnit.nccScore_;//如果来自稀疏点云则是PRIOR_NCC
             //记录该点对应的颜色数据
             newPt.colorPtr_=getCvColorPtr(iter->x,iter->y);
             //在它的对象信息里面记录z的范围
@@ -697,7 +701,7 @@ public:
     {
         //获取范围内的点列表
         CvPointVector cvPtList;
-        imgRange.getPtsInRange(cvPtList);
+        imgRange.getPtsInRange(cvPtList); // dom获取范围内的所有点像素坐标 只是储存坐标
 #ifdef FIX_SAMPLE
         //传入范围，表示仅采样边缘点和优化过的点，采样优化过的点是为了辅助后面的优化
         makeOptimizerVector(cvPtList,dstVector,&imgRange,nccThre);
@@ -1519,9 +1523,11 @@ struct SfM_Data
 #ifdef USE_IMG_Z_CONSTRAIN
           uint ptCount=pointAvgColor(eachPt.second,avgColor,true);
 #else
-          uint ptCount=pointAvgColor(eachPt.second,avgColor,false);
+          uint ptCount=pointAvgColor(eachPt.second,avgColor,false);//use 每一个三维点颜色的平局值
 #endif
           //获取当前位置的dom信息,有可能对于边界位置是访问越界的，那就直接不要了
+          //将三维点投影到dom图上，观察是否越界
+          //这里 tempUnit 最终是作用到 unitMap_上 corresColor_作用在domResult_上
           DomUnitAll tempUnit;
           if(!domInfo_.getUnitByCloud(eachPt.second.X,tempUnit)) continue;
           //判断这里面的z值是否已经有了一个数据,z的默认数据是0
@@ -1885,7 +1891,7 @@ struct SfM_Data
                 //对欧氏距离做变换
                 tempScore=10.f/tempScore;
 #else
-                double tempScore=currColor.computeNccByAvg(filePtr);
+                double tempScore=currColor.computeNccByAvg(filePtr);//对应论文3.3计算颜色相似度
 #endif
                 //判断是否需要记录中心颜色
                 if(filePtr)
@@ -2104,6 +2110,7 @@ struct SfM_Data
       srcPatch.initProjectLinesByExternalData();
 #endif
       //遍历面片的每个位置，初始化它们的投影直线
+      //srcPatch is 9*9
       for(OptimizerVector::iterator iter=srcPatch.optiVec_.begin();
           iter!=srcPatch.optiVec_.end();++iter)
       {
@@ -2128,7 +2135,7 @@ struct SfM_Data
       double maxScore=-3;
       //记录每个位置的z值
       Point3DList savedPtList;
-      srcPatch.getPlanePts(savedPtList);
+      srcPatch.getPlanePts(savedPtList);//这个path里面的点
       //依次遍历面片的每个可能的高度阶层信息
       unsigned zStepMax=srcPatch.getZStepNum();
       //如果使用固定z值的方法就只迭代一次
@@ -2372,7 +2379,8 @@ struct SfM_Data
   //sliderLen是窗口向下滑动的长度，为了填充稀疏点用的,使用德劳内的z值做辅助的时候，
   //sliderLen，它传入1的时候表示使用德劳内的z值做优化
   //minZStep是允许的最小的z阶梯，为了保证z值较高的点优先重建设置的一个参数
-  bool optimizeDomPixel(int bgStep,bool optAnyway=false,int maskSize=MASK_SIZE(0),int sliderLen=MASK_SIZE(0),double nccThre=NCC_THRE,
+  bool optimizeDomPixel(int bgStep,bool optAnyway=false,int maskSize=MASK_SIZE(0),
+                        int sliderLen=MASK_SIZE(0),double nccThre=NCC_THRE,
                         int minZStep=0)
   {
       //dom图的宽度的迭代范围
@@ -2391,7 +2399,7 @@ struct SfM_Data
           useGlobalHelp=true;
       }
 #endif
-      //遍历dom图的每一行每一列
+      //遍历dom图的每一行每一列 sliderLen默认是3 这里是1 maskSize=3
       for(unsigned int domRow=bgStep;domRow+maskSize<=domInfo_.domHeight_;domRow+=sliderLen)
       {
           //输出迭代位置
@@ -2403,7 +2411,7 @@ struct SfM_Data
           {
               //生成当前位置的范围数据
               ImgRange iterRange;
-              iterRange.initValue(domCol,domCol+maskSize,domRow,domRow+maskSize);
+              iterRange.initValue(domCol,domCol+maskSize,domRow,domRow+maskSize);//3*3大小的块
               //新建dom图里面的矩阵块
               DomRectPatch tempPatch;
               //从dom图需要获取矩阵块的每个位置的z优化器
@@ -2421,8 +2429,13 @@ struct SfM_Data
                   haveUnrefine=true;
 #ifdef USE_Z_PLANE
                   //判断是否有可使用的点，如果没有可使用的点那就先不管
+                  //#define STEP_L1 (1.f/200) //一阶精度，在z上找坐标的时候每次步长是z范围的1%
+                  //#define REF_THRE_DIS 0.3 可参考的阈值与真实阈值的差值
+                   //初始化当前矩形面片里面可能出现的z阶层
                   if(!GridConfig::useCurrentHeightFlag())
-                    if(tempPatch.initZSteps(domInfo_.zRange_,STEP_L1,useGlobalHelp,nccThre-REF_THRE_DIS,minZStep)==0) continue;
+                    if(tempPatch.initZSteps(domInfo_.zRange_,STEP_L1,useGlobalHelp,
+                                            nccThre-REF_THRE_DIS,minZStep)==0)
+                        continue;
                   //判断当前位置是否需要输出信息
                   if(debugStop(domCol,domInfo_.domHeight_-domRow-1))
                   {
@@ -2625,14 +2638,15 @@ struct SfM_Data
       RangeType xRange,yRange;
       if(cloudRangeInfo_.size())
       {
-            parseRangeInfo(xRange,yRange);
+            parseRangeInfo(xRange,yRange);//获得 点云范围
+            //根据点云数据与设定的gsd 获得DOM图的长和宽
             domInfo_.makeResolution(xRange[0],xRange[1],yRange[0],yRange[1],structure.size());
-            domInfo_.initDom();
-            //遍历每个点云 把范围外的点删除
+            domInfo_.initDom();//生成初始DOM 用数据domResult_记录 默认为黑色
+            //遍历每个点云 把范围外的点删除  Structure (3D points with their 2D observations)
             for(Landmarks::iterator iter=structure.begin();iter!=structure.end();)
             {
                 //获取当前位置的点
-                Vec3& thisPt=iter->second.X;
+                Vec3& thisPt=iter->second.X;//三维点位置
                 //判断范围
                 if(thisPt[0]<xRange[0]) iter=structure.erase(iter);
                 else if(thisPt[0]>xRange[1]) iter=structure.erase(iter);
@@ -2748,7 +2762,7 @@ struct SfM_Data
         //是否存在新的可优化的点
         bool haveUnRefine=true;
         //遍历掩膜步长的每一步
-#ifdef FIX_MASK_TIMES//使用固定的掩膜大小循环若干次
+#ifdef FIX_MASK_TIMES//使用固定的掩膜大小循环若干次 350
         for(int iterTimes=0;iterTimes<FIX_MASK_TIMES;++iterTimes)
 #else
         for(int maskSize=MASK_SIZE;maskSize>=3;maskSize-=2)
@@ -3009,7 +3023,7 @@ struct SfM_Data
               //把颜色叠加到平均颜色上,这个+=是自己单独实现的，不是opencv自带的东西
               avgColor+=tempColor;
               //判断是否需要记录z值
-              if(needRecordZ)
+              if(needRecordZ)//false
               {
                   //计算临时的z所处的阶层
                   int tempZLevel=domInfo_.getZLevel(cloudPt.X[2]);

@@ -28,7 +28,7 @@ public:
         //是否存在新的可优化的点
         bool haveUnRefine=true;
         //遍历掩膜步长的每一步
-#ifdef FIX_MASK_TIMES//使用固定的掩膜大小循环若干次
+#ifdef FIX_MASK_TIMES//使用固定的掩膜大小循环若干次 350
         for(int iterTimes=0;iterTimes<FIX_MASK_TIMES;++iterTimes)
 #else
         for(int maskSize=MASK_SIZE;maskSize>=3;maskSize-=2)
@@ -52,18 +52,20 @@ public:
             }
 #endif
             //当前循环的面片大小
-            int maskSize=MASK_SIZE(iterTimes);
-            //更新当前周期是否需要考虑遮挡问题
+            int maskSize=MASK_SIZE(iterTimes);//3
+            //更新当前周期是否需要考虑遮挡问题 iterTimes大于0则考虑遮挡
             manager.isUsingOccludeDetection_=isIterateDetectOcclude(iterTimes);
             std::cout<<iterTimes<<std::endl;
             //初始化是否有可优化的点
             haveUnRefine=false;
-            for(int currStep=0;currStep<maskSize;currStep+=MASK_STEP)
+            for(int currStep=0;currStep<maskSize;currStep+=MASK_STEP)//MASK_STEP = 1
             {
                  //根据目前的步长优化dom图的每个像素
 #ifdef FIX_MASK_TIMES//同大小窗口固定迭代若干次
                 //临时的结果
-                bool resultFlag=manager.optimizeDomPixel(currStep,false,maskSize,1,THRE_ID(iterTimes),ALLOW_MIN_Z(iterTimes));
+                bool resultFlag=manager.optimizeDomPixel(currStep,false,maskSize,
+                                                         1,THRE_ID(iterTimes),
+                                                         ALLOW_MIN_Z(iterTimes));
                 //判断是否有未优化的点
                 if(resultFlag) haveUnRefine=true;
 #endif
